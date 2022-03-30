@@ -1,0 +1,14 @@
+Software Setup:
+
+1.jdk 11 - oracle jdk /open jdk
+   https://www.oracle.com/in/java/technologies/javase/jdk11-archive-downloads.html
+2.docker 
+  https://www.docker.com/products/docker-desktop/#
+  Docker Desktop for windows/mac/linux
+3.kubernets
+ https://kubernetes.io/docs/setup/production-environment/windows/intro-windows-in-kubernetes/
+4.intellij idea / Ecplise
+    https://www.jetbrains.com/idea/download/#section=windows
+  community edition
+5.maven
+  https://maven.apache.org/download.cgi
