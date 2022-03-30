@@ -1,0 +1,119 @@
+What is Quarkus?
+  Quarkus is a framework to built on the top of Various java and JEE Standards.
+
+What is JCP ?
+ Java Community Process is non profitable organization whoes responsability is to standardize the java technology (java echo system).
+
+if any java new version comes,JCP committe need to approve.
+
+JSR-Java Specifcation Request.
+
+Every JSR has unique no - JSR-223
+
+What JEP (JDK Enhancement Proposal)
+     The JDK Enhancement Proposal (or JEP) is a process drafted by Oracle Corporation for collecting proposals for enhancements to the Java Development Kit and OpenJDK.
+
+
+Java Technology Classification
+
+1.JSE
+2.JEE
+3.JME
+
+1.JSE - Java Standard Edition
+  -Java language Spec
+  -Java VM Spec
+
+
+2.JEE - Java Enterise Edition
+ The Java Enterprise Edition offers APIs and tools for developing multitier enterprise applications.
+
+ -Application Development Specs
+    JPA Spec  - Vendor netural ORM Solutions
+    JSON Binding - JSON-B  
+    Java Servlet 
+    JAX-RS - Building Resfull API
+    JAX-WS - Building xml based webservices -SOAP Webservices
+    Bean Validation
+    JTA  - Java Transaction API
+ -Container Specs 
+    How to create Enterprise grade applications
+
+3.JME - Java Micro Edition
+   For building Device Apps , Mobile Development.
+
+Why JEE Spec failed In Modern Computing?
+
+     JEE Spec was developed to build traditional "Monolothic distributed,transactional, secure Applications"
+
+
+What if i want to use JEE Spec for building Microservices?
+
+ i cant use JEE Spec directly.
+
+What if i want to build standard based microservices based On JEE?
+
+                       "MicroProfile Specfication"
+
+
+
+Birth of Project called MicroProfile
+
+MicroProfile
+
+Optimizing Enterprise Java - JEE for a Microservices Architecture.
+
+
+Micro Profile addresses the need for enterprise "java microservices"
+
+It is set of secifications for handling microservices design patterns. 
+
+MicroProfile enables JEE Developers to leverage their existing skill set while shifiting
+their focus from traditional monolithic applications to Micro Services
+
+
+MicroProfile is just collections of MicroServices Service Patterns on JEE standards
+
+
+Optimizing Enterprise Java - JEE for a Microservices Architecture.
+
+
+Micro Profile addresses the need for enterprise "java microservices"
+
+It is set of secifications for handling microservices design patterns. 
+
+MicroProfile enables JEE Developers to leverage their existing skill set while shifiting
+their focus from traditional monolithic applications to Micro Services
+
+
+MicroProfile is just collections of MicroServices Service Patterns on JEE standards
+
+
+Implmentations:
+
+1.Quarkus
+etc...
+
+MicroProfile Specs:
+
+1.JAX-RS - To create HTTP based Microservices-
+2.CDI - Context Dependency Injection - DI - Beans
+3.JSON-B
+4.Configuration
+5.Falut
+6.Health
+etc....
+..............................................................................................
+
+
+
+
+
+
+
+
+
+
+
+
+
