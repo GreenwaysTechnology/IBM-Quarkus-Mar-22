@@ -222,6 +222,73 @@ Step 4: compile and lanuch in dev mode. using mvn
 .............................................................................................
 			MicroServices - Service Design -REST API Development
 .............................................................................................
+Quarkus is based on JEE Specfications and Micro Profile Specification.
+
+1.JAX-RS
+  It is spec from JEE 
+
+Since JAX-RS is spec we need implementation.
+
+1.RestEasy
+2.Jersy
+
+RestEasy:
+  It is implemenation of JAX-RS specfication , used in side quarkus.
+
+Quarkus has enchanced RestEasy for compatiable for native development
+
+quarkus-resteasy
+..............................................................................................
+
+JAX-RS Terms:
+
+1.Resource
+   It represents domain model.
+
+ProductResource
+UserResource
+CustomerResource
+
+Declare Resource class annotate with @Path -  root path
+
+API :
+ HTTP Verbs(GET,POST,DELETE,PUT) - URL mapping.
+...........................................................................................
+package com.ibm.rs;
+
+import javax.ws.rs.*;
+
+@Path("/api/products")
+public class ProductResource {
+    //methods
+    @Path("/list")
+    @GET
+    public String findAl() {
+        return "FindAll Products!!!!!";
+    }
+
+    @POST
+    @Path("/create")
+    public String create() {
+        return "Created...!!!!";
+    }
+
+    @PUT
+    @Path("/update")
+    public String update() {
+        return "updated";
+    }
+
+    @Path("/remove")
+    @DELETE
+    public String remove() {
+        return "Deleted";
+    }
+}
+
+
+
+
 
 
 
