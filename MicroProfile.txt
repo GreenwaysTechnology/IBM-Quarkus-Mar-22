@@ -286,12 +286,108 @@ public class ProductResource {
     }
 }
 
+Task:
+ Test the hot reloading feature is working or not.
+ Test all endpoints are working or not.
+
+............................................................................................
+
+What is extension?
+
+  extension is, project dependency - jar dependency.
+
+By default , you can have extensions when create new project.
+
+Think of Quarkus extensions as your project dependencies.
+
+Extensions configure, boot and integrate a framework or technology into your Quarkus application. 
+
+They also do all of the heavy lifting of providing the right information to GraalVM for your application to compile natively.
+
+How to manage extensions(dependency)?
+
+managment means - add,removing,listing extensions
+
+there are two ways
+
+1.via maven or gradle 
+2.via cli - quarkus
+
+E:\session\IBM\2022\march\quarkus\code-with-quarkus>quarkus  ext ls
+Current Quarkus extensions installed:
+
+? ArtifactId                                         Extension Name
+? quarkus-resteasy                                   RESTEasy JAX-RS
+? quarkus-resteasy-jackson                           RESTEasy Jackson
 
 
+E:\session\IBM\2022\march\quarkus\code-with-quarkus>quarkus  ext rm resteasy-jackson
+[SUCCESS] Extension io.quarkus:quarkus-resteasy-jackson has been uninstalled
 
+How to send JSON Payload as Response?
 
+Quarks cant convert any object into JSON by default with help of "RestEasy" extension
 
+Add resteasy-jackson
 
+E:\session\IBM\2022\march\quarkus\code-with-quarkus>quarkus  ext add resteasy-jackson
+[SUCCESS] Extension io.quarkus:quarkus-resteasy-jackson has been installed
+
+Code:
+
+package com.ibm.rs;
+
+//Entity
+public class User {
+    private  int userId;
+    private  String userName;
+
+    public User() {
+    }
+
+    public User(int userId, String userName) {
+        this.userId = userId;
+        this.userName = userName;
+    }
+
+    public int getUserId() {
+        return userId;
+    }
+
+    public void setUserId(int userId) {
+        this.userId = userId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+}
+
+package com.ibm.rs;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+@Path("/api/users")
+public class UserResource {
+    //send json
+    @GET
+    @Path("/list")
+    @Produces(MediaType.APPLICATION_JSON)
+    public User findUser() {
+        User user = new User(1, "Subramanian Murugan");
+        return user;
+    }
+}
+
+Note:
+  Quarkus applies hot reloading feature, when we add extension, that means we dont need to restart server even after adding any dependency.
 
 
 
