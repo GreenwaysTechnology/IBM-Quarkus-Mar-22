@@ -509,6 +509,226 @@ Assignment :
 Model : isbn,author,title,publisher,dateofpublishing,edition
 
 Database: in memory datastructure -  List or Set or Map - Findout approiate collection
+.............................................................................................
+				 Response Types
+.............................................................................................
+
+JAX-RS api can return any of one the type
+ - String  - plain/text
+ - Objects - application/json
+ - Void    - no return type -  only status
+ - Response - Response Object 
+
+
+Basic Response Types: String,void,Object
+package com.ibm.rs.response.type;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+@Path("/api/books")
+public class BookResource {
+
+    @GET
+    @Path("/list")
+    public String getBook(){
+        return "Book";
+    }
+
+    @GET
+    @Path("/show")
+    public void showBook(){
+        System.out.println("show Book");
+    }
+    @GET
+    @Path("/sendBook")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Book sendBook(){
+        return new Book("Quarkus");
+    }
+}
+
+
+Recommendations:
+
+1.You can use String
+2.Dont use void
+3.YOu can use Object as response type
+
+
+Limitions of Object as Response
+
+-if you want to customize the Response we cant,for eg if you want to add some custom headers
+like tokens,urls,resourceinformation.
+
+Reponse Object
+
+Response;
+
+ Object used to send "payload-data" along with meta data (http code,otherinformation)
+
+HTTP Status codes:
+
+-> informational response - 100 to 199
+-> success response -  200-299
+-> Redirects  - 300-399
+-> client errors - 400-499
+-> server errrors - 500-599
+
+package com.ibm.rs.response.type;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+
+@Path("/api/books")
+public class BookResource {
+
+    @GET
+    @Path("/list")
+    public String getBook() {
+        return "Book";
+    }
+
+    //    @GET
+//    @Path("/show")
+//    public void showBook() {
+//        System.out.println("show Book");
+//    }
+    @GET
+    @Path("/show")
+    public Response showBook() {
+        System.out.println("show Book");
+        return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/sendBook")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Book sendBook() {
+        return new Book("Quarkus");
+    }
+
+    @GET
+    @Path("/bookresponse")
+    public Response sendBookResponse() {
+        return Response.
+                status(200)
+                .entity(new Book("Quarkus Response"))
+                .header("author", "Subramanian")
+                .build();
+    }
+
+    @Path("/save")
+    @POST
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response save() {
+        Book book = new Book("Vertx");
+        //books/create/1  201 created
+        return Response.created(UriBuilder.fromResource(BookResource.class)
+                        .path("/create/" + Long.toString(1)).build())
+                .entity(book)
+                .header("book", book.getName())
+                .build();
+    }
+}
+
+How to post json to REST API(Save)
+
+package com.ibm.rs.response.type;
+
+public class Book {
+    private String name;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Book() {
+    }
+
+    public Book(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return "Book{" +
+                "name='" + name + '\'' +
+                '}';
+    }
+}
+
+package com.ibm.rs.response.type;
+
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+
+@Path("/api/books")
+public class BookResource {
+
+    @GET
+    @Path("/list")
+    public String getBook() {
+        return "Book";
+    }
+
+    //    @GET
+//    @Path("/show")
+//    public void showBook() {
+//        System.out.println("show Book");
+//    }
+    @GET
+    @Path("/show")
+    public Response showBook() {
+        System.out.println("show Book");
+        return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/sendBook")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Book sendBook() {
+        return new Book("Quarkus");
+    }
+
+    @GET
+    @Path("/bookresponse")
+    public Response sendBookResponse() {
+        return Response.
+                status(200)
+                .entity(new Book("Quarkus Response"))
+                .header("author", "Subramanian")
+                .build();
+    }
+
+    @Path("/save")
+    @POST
+    @Produces(MediaType.APPLICATION_JSON) //output type
+    @Consumes(MediaType.APPLICATION_JSON)  //input type
+    public Response save(Book book) {
+        //Book book = new Book("Vertx");
+        //books/create/1  201 created
+        return Response.created(UriBuilder.fromResource(BookResource.class)
+                        .path("/create/" + Long.toString(1)).build())
+                .entity(book)
+                .header("book", book.getName())
+                .build();
+    }
+}
+
 
 
 
