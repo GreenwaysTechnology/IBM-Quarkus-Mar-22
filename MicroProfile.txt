@@ -388,15 +388,127 @@ public class UserResource {
 
 Note:
   Quarkus applies hot reloading feature, when we add extension, that means we dont need to restart server even after adding any dependency.
+...........................................................................................
+				JAX-RS Parameters
+...........................................................................................
+@MatrixParam 
+   Extracts the value of a URI matrix parameter.
+@QueryParam 
+  Extracts the value of a URI query parameter.
+@PathParam 
+  Extracts the value of a URI template parameter.
+@CookieParam
+  Extracts the value of a cookie.
+@HeaderParam
+  Extracts the value of a header.
+@Context
+  Injects an instance of a supported resource
+	
+
+package com.ibm.rs.params;
+
+package com.ibm.rs.params;
+
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+
+@Path("/api/myproducts")
+public class ProductResource {
+
+    //http://localhost:8080/api/products/10
+    @Path("/{productId}")
+    @GET
+    public String findById(@PathParam("productId") String productId) {
+        return productId;
+    }
+
+    //http://localhost:8080/product/filter?category=sports
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    @Path("/filter")
+    public String filterProductByCategoriees(@QueryParam("category") String category) {
+        System.out.println("");
+        return category;
+    }
+
+    //Matrix Params
+    //http://localhost:8080/api/myproducts/product;name=book;title=Java
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    @Path("/product")
+    public String getBookDetails(@MatrixParam("name") String name, @MatrixParam("title") String title) {
+        System.out.println("");
+        return name + " " + title;
+    }
+}
 
 
+package com.ibm.rs.params;
 
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.HttpHeaders;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.UriInfo;
 
+@Path("/api/containerResource")
+public class ContainerResouces {
 
+    @Produces(MediaType.TEXT_PLAIN)
+    @GET()
+    @Path("/urls")
+    public String getUriInfo(@Context UriInfo uriInfo) {
+        System.out.println(uriInfo.getAbsolutePath() + " " + uriInfo.getRequestUri());
+        return uriInfo.getAbsolutePath() + " " +uriInfo.getRequestUri();
+    }
 
+    @Produces(MediaType.TEXT_PLAIN)
+    @GET()
+    @Path("/headers")
+    public String getHeaders(@Context HttpHeaders headers) {
+        System.out.println(headers.getRequestHeaders());
+        return "headers Information";
+    }
+}
 
+Other Paramters:
 
+1.FormParameters
+@FormParam @Form
+2.CookieParameter
+@CookieParam
+.............................................................................................
+				  DefaultValues for Path
 
+if you dont pass Query parameters ,the default values can be assigned.
+
+//localhost:8080/api/myproducts/filter => output phone
+//localhost:8080/api/myproducts/filter?category=books => output books
+
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    @Path("/filter")
+    public String filterProductByCategoriees(@QueryParam("category") @DefaultValue("phone") String  category) {
+        System.out.println("");
+        return category;
+    }
+.............................................................................................
+Assignment : 
+ You have to build book Resource
+
+/api/books
+=>FindAll books
+=>findBook by isbn, author
+=>filter books by category and language - userinterface,microservices
+=>save new book 
+=>remove existing book - by isbn
+=>update book information
+
+Model : isbn,author,title,publisher,dateofpublishing,edition
+
+Database: in memory datastructure -  List or Set or Map - Findout approiate collection
 
 
 
