@@ -55,5 +55,6 @@ public class BookResource {
                 .entity(book)
                 .header("book", book.getName())
                 .build();
+
     }
 }

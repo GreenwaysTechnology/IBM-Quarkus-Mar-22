@@ -1,6 +1,9 @@
 package com.ibm.rs;
 
+import javax.xml.bind.annotation.XmlRootElement;
+
 //Entity
+@XmlRootElement
 public class User {
     private  int userId;
     private  String userName;
