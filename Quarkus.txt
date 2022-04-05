@@ -1555,6 +1555,7 @@ Database: in memory datastructure -  List or Set or Map - Findout approiate coll
 New Features to be added:
 
 ->Resource Locators  
+->The api should return data in two formats - XML and JSON -negoation
 ->Exception Handling
    ->Suppose if given bookid not available
   Add : Resouce Specific Exception class 
@@ -1562,7 +1563,705 @@ New Features to be added:
 ->Add BookService Layer , keep all book apis,From Rest api you have to call service methods
   Use DI
 .............................................................................................
+   				CDI and Resource Locator
+
+
+if a sub resouces has CDI annotation, if there  is any dependency.we need to use different annotations.
+
+Main Resource
+
+Old style:
+    @Path("/services")
+    public ProductService getProductService(){
+          return new ProductService();
+    }
+This code will not work , which will throw NullPointerException, the reason is CDI build time process. here object creation happens runtime.
+
+Solution;
+@Context - It is used to inject any container specific features.
+
+ResourceContext :
+      Get a resolved instance of a resource or sub-resource class.
+
+The resolved resource instance is properly initialized in the context of the current request processing scope.
+
+ The scope of the resolved resource instance depends on the managing container. For resources managed by the runtime container the default scope is per-request.
+
+
+Resource:
+package com.ibm.rs.resoucelocators;
+
+import com.ibm.rs.di.GreeterResource;
+
+import javax.ws.rs.Path;
+import javax.ws.rs.container.ResourceContext;
+import javax.ws.rs.core.Context;
+
+@Path("/api/ibm")
+public class Application {
+    @Context
+    ResourceContext resourceContext;
    
+    @Path("/greeter")
+    public GreeterResource getGreeterResource(){
+        return resourceContext.getResource(GreeterResource.class);
+    }
+}
+
+package com.ibm.rs.di;
+
+import javax.enterprise.context.RequestScoped;
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+
+@RequestScoped
+public class GreeterResource {
+    //DI - field
+    @Inject
+    private HelloService helloService;
+
+    @GET
+    @Path("/hello")
+    public Response sayHello() {
+        return Response.ok(helloService.sayHello()).build();
+    }
+}
+..............................................................................................
+
+			Bean Creation Exception-UnsatisfiedResolutionException
+
+
+javax.enterprise.inject.UnsatisfiedResolutionException: Unsatisfied dependency for type com.ibm.rs.di.HelloService and qualifiers [@Default]
+	- java member: com.ibm.rs.di.GreeterResource#helloService
+	- declared on CLASS bean [types=[com.ibm.rs.di.GreeterResource, java.lang.Object], qualifiers=[@Default, @Any], target=com.ibm.rs.di.GreeterResource]
+	at io.quarkus.arc.processor.Beans.resolveInjectionPoint(Beans.java:428)
+	at io.quarkus.arc.processor.BeanInfo.init(BeanInfo.java:524)
+	at io.quarkus.arc.processor.BeanDeployment.init(BeanDeployment.java:260)
+	at io.quarkus.arc.processor.BeanProcessor.initialize(BeanProcessor.java:134)
+	at io.quarkus.arc.deployment.ArcProcessor.validate(ArcProcessor.java:462)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+
+
+This exception is thrown when bean is not created -  
+  due to 
+    -no bean class  not present in the class path
+    -you may forgot to annotate using lifecycle annotations -@ApplicationScoped...
+
+
+eg:
+public class HelloService {
+
+      public String sayHello(){
+           return "Hello Service Bean";
+      }
+}
+ @Inject
+ HelloService helloService;
+
+..............................................................................................
+                            Types of Injection in Quarkus  -Inection Points
+
+1.Field Injection
+2.Setter Injection
+3.Constructor injection
+
+
+Setter Injection
+package com.ibm.rs.di;
+
+import javax.enterprise.context.RequestScoped;
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+
+@RequestScoped
+public class GreeterResource {
+   //setter injection
+    private HelloService helloService;
+
+    @Inject
+    public void setHelloService(HelloService helloService) {
+        this.helloService = helloService;
+    }
+
+    @GET
+    @Path("/hello")
+    public Response sayHello() {
+        return Response.ok(helloService.sayHello()).build();
+    }
+}
+
+///
+constructor injection:
+package com.ibm.rs.di;
+
+import javax.enterprise.context.RequestScoped;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+
+@RequestScoped
+public class GreeterResource {
+    //DI - field
+//    @Inject
+//    private HelloService helloService;
+
+    //setter injection
+//    private HelloService helloService;
+//
+//    public GreeterResource() {
+//    }
+
+    //constructor Injection
+    private HelloService helloService;
+
+    //    @Inject
+//    public GreeterResource(HelloService helloService) {
+//        this.helloService = helloService;
+//    }
+
+//without Inject annotation also works
+    public GreeterResource(HelloService helloService) {
+        this.helloService = helloService;
+    }
+
+//
+
+    @GET
+    @Path("/hello")
+    public Response sayHello() {
+        return Response.ok(helloService.sayHello()).build();
+    }
+}
+.............................................................................................
+				Quarkus and Type based Implementation 
+.............................................................................................
+
+Quarkus is always based on type based injection not implemenation based.
+
+Steps : 1 declare interface.
+
+package com.ibm.rs.di;
+
+public interface NumberGenerator {
+    //Generate ISBN Number
+    String generateNumber();
+}
+
+Step 2:  implement interface
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+import java.util.Random;
+
+@ApplicationScoped
+public class IsbnGenerator implements NumberGenerator {
+    @Override
+    public String generateNumber() {
+        return "15-87654" + Math.abs(new Random().nextInt());
+    }
+}
+
+Step 3: declare book Service:
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
+
+@ApplicationScoped
+public class BookService {
+
+    //Inject interface
+    @Inject
+    NumberGenerator numberGenerator;
+
+    //biz method
+    public Book createBook() {
+        Book book = new Book("Quarks In Action", 1000f, "Subramanian");
+        book.setIsbn(numberGenerator.generateNumber());
+        return book;
+    }
+}
+
+Step 5: Declare Book Resource
+package com.ibm.rs.di;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+
+@Path("/api/book")
+public class BookResource {
+    @Inject
+    BookService bookService;
+
+    @GET
+    public Response createBook(){
+        return Response.ok(bookService.createBook()).build();
+    }
+}
+..............................................................................................
+			   Interface DI with Mulitiple Implementations
+..............................................................................................
+
+
+Step : 1 declare interface
+package com.ibm.rs.di;
+
+public interface Greeter {
+    String sayGreet();
+}
+
+Step 2 : declare multiple implementations
+
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class Hai implements Greeter {
+    @Override
+    public String sayGreet() {
+        return "Hai";
+    }
+}
+
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class Hello implements Greeter {
+    @Override
+    public String sayGreet() {
+        return "Hello";
+    }
+}
+
+Step 3: Resource Class with Greeter Dependency
+
+package com.ibm.rs.di;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/greeter/greet")
+public class GreeterDIResource {
+    @Inject
+    private Greeter greeter;
+
+    @GET
+    public String sayGreet() {
+        return greeter.sayGreet();
+    }
+
+}
+
+When you run this code , you will get 
+
+javax.enterprise.inject.AmbiguousResolutionException: Ambiguous dependencies for type com.ibm.rs.di.Greeter and qualifiers [@Default]
+	- java member: com.ibm.rs.di.GreeterDIResource#greeter
+	- declared on CLASS bean [types=[java.lang.Object, com.ibm.rs.di.GreeterDIResource], qualifiers=[@Default, @Any], target=com.ibm.rs.di.GreeterDIResource]
+	- available beans:
+		- CLASS bean [types=[com.ibm.rs.di.Greeter, com.ibm.rs.di.Hello, java.lang.Object], qualifiers=[@Default, @Any], target=com.ibm.rs.di.Hello]
+		- CLASS bean [types=[com.ibm.rs.di.Hai, com.ibm.rs.di.Greeter, java.lang.Object], qualifiers=[@Default, @Any], target=com.ibm.rs.di.Hai]
+
+here we need to tell the quarkus which implementation bean you want.
+
+
+How to solve this problem?
+
+Qualifiers
+   Injecting Qualified beans which you want bean implemenation you want.
+
+Is there any default qualifier?
+
+Yes
+
+@Default
+
+if there is only one implementation, injection works using @Default qualifier.
+
+if there is more than one implementation , container will throw AmbiguousResolutionException
+
+How to write Qualifier?
+
+We have to write custom  Qualifer annotation
+
+Steps: 
+
+1.Qualifier for Hai
+import javax.inject.Qualifier;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.*;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
+@Qualifier
+@Retention(RUNTIME)
+@Target({FIELD,TYPE,METHOD})
+public @interface HaiQualifier{
+}
+
+2.Qualifier for Hello
+
+package com.ibm.rs.di;
+
+import javax.inject.Qualifier;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.*;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
+@Qualifier
+@Retention(RUNTIME)
+@Target({FIELD,TYPE,METHOD})
+public @interface HaiQualifier{
+}
+
+
+3.Annotate Bean classes with Qualifiers
+
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@HelloQualifier
+@ApplicationScoped
+public class Hello implements Greeter {
+    @Override
+    public String sayGreet() {
+        return "Hello";
+    }
+}
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@HaiQualifier
+@ApplicationScoped
+public class Hai implements Greeter {
+    @Override
+    public String sayGreet() {
+        return "Hai";
+    }
+}
+
+4.Inject beans into service or resource
+package com.ibm.rs.di;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/greeter/greet")
+public class GreeterDIResource {
+
+    //this works only if there is only one implementation
+//    @Inject @Default
+//    private Greeter greeter;
+//    @Inject
+//    @HaiQualifier
+//    private Greeter haigreeter;
+//
+//    @Inject
+//    @HelloQualifier
+//    private Greeter hellogreeter;
+
+    //code refactoring without @Inject itself it works
+    @HaiQualifier
+    private Greeter haigreeter;
+
+    @HelloQualifier
+    private Greeter hellogreeter;
+
+    @GET
+    public String sayGreet() {
+        return haigreeter.sayGreet() + " " + hellogreeter.sayGreet();
+    }
+
+}
+...........................................................................................
+				Bean Scopes
+...........................................................................................
+1.@ApplicationScoped
+     Bean is created and kept entire life of application
+     Only one time is created - singleton
+     A single bean instance is used for the application and shared among all injection points. 
+     The instance is created lazily, i.e. once a method is invoked upon the "client proxy".
+
+2.@SingleTon
+      -only one instance per container
+
+Applicationscope vs singleton
+
+-singleton beans are eagerly created
+-application beans are lazy - uses a factory -client proxy
+-singleton is some what performance good.Applicationscope uses delegation pattern to delegate  objects to proxy classes
+-Singletons cant be used to create Mock using QuarksMock under test
+
+     
+2.Request,Session
+   -A bean can be bound to single request cycle-  mostly used in  dynamic webapps
+    eg: Spring MVC,Struts
+   -Session scope 
+     single user multiple requests.
+
+@RequestScoped :
+  In the subresource if you refer resource inside MainResource.
+
+PaymentApp
+    -
+     @RequestScoped
+     CreditCardResource
+..............................................................................................
+..............................................................................................
+			Types of beans with respect to data injection
+..............................................................................................
+
+1.class beans
+  ...variables and methods itself can be treated as dependency
+2.Producer methods
+3.Producer fields
+.....................
+4.Syntenetics beans
+
+
+1.class Bean:
+  Bean is created out class.
+
+@ApplicationScoped
+public class BookService {} 
+
+@Inject
+BookService bookService
+
+2.Producer fields  && Producer methods
+   We can inject any instance variable and methods as dependency.
+
+package com.ibm.rs.di;
+
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.inject.Produces;
+import java.util.ArrayList;
+import java.util.List;
+
+@ApplicationScoped
+public class Producers {
+    //instance variable ; going to be as dependency to some other classes
+    @Produces
+    double price = 1000.00;
+
+    //instance method ; going to be as dependency to some other class
+    @Produces
+    List<String> topics(){
+        List<String> topics = new ArrayList<>();
+        topics.add("cdi");
+        topics.add("configuration");
+        topics.add("RestEasy");
+        return topics;
+    }
+}
+package com.ibm.rs.di;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+import java.util.List;
+
+@Path("/producer")
+public class ProducerDI {
+
+    @Inject
+    double price;
+    @Inject
+    List<String> topics;
+
+
+    @GET
+    @Path("/price")
+    public Response getPrice() {
+        return Response.ok().entity(price).build();
+    }
+    @GET
+    @Path("/topics")
+    public Response getTopics() {
+        return Response.ok().entity(topics).build();
+    }
+}
+..............................................................................................
+				Life cycle Hooks and Beans
+.............................................................................................
+
+@PostConstruct
+@PreDestroy
+
+package com.ibm.rs.di;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
+@ApplicationScoped
+//@Singleton
+public class BookService {
+
+    //Inject interface
+    @Inject
+    NumberGenerator numberGenerator;
+    
+    @PostConstruct
+    public void init(){
+        System.out.println("INIT");
+    }
+    @PreDestroy
+    public void destroy(){
+        System.out.println("Destroy");
+    }
+
+    //biz method
+    public Book createBook() {
+        Book book = new Book("Quarks In Action", 1000f, "Subramanian");
+        book.setIsbn(numberGenerator.generateNumber());
+        return book;
+    }
+}
+..............................................................................................
+				  Interceptors
+..............................................................................................
+    
+What is concern?
+   concern means features like transaction,security,logging
+
+Cross cutting means, removing these concerns from the application logic.
+
+How to cross cutting concerns?
+ There is spec all "java interceptors" 
+
+How to define interceptor and bind with api?
+
+Step 1: 
+Define custom Annotation and annotate with @InterceptorBinding , which is going to act as bridge between "Interceptor" and Service biz logic.
+
+package com.ibm.rs.di.interceptors;
+
+import javax.interceptor.InterceptorBinding;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.ElementType.TYPE;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
+
+@Inherited
+@InterceptorBinding
+@Retention(RUNTIME)
+@Target({METHOD, TYPE})
+public @interface LogEvent {
+}
+
+Step 2: define Interceptor
+
+Declare class and annotate with @Interceptor
+
+Have method and annotate with @AroundInvoke - gets called when ever biz method is called
+Bind With @LogEvent -  InterceptorBinding Annotation
+
+package com.ibm.rs.di.interceptors;
+
+import javax.interceptor.AroundInvoke;
+import javax.interceptor.Interceptor;
+import javax.interceptor.InvocationContext;
+import java.util.logging.Logger;
+
+@Interceptor
+@LogEvent
+public class BookServiceInterceptor {
+
+    private Logger logger;
+
+    @AroundInvoke
+    public Object logEvent(InvocationContext invocationContext) throws Exception {
+        logger = Logger.getLogger(invocationContext.getTarget().getClass().getName());
+        System.out.println("log.........");
+        logger.info("Method: " + invocationContext.getMethod().getName());
+        logger.info("Arguments: " + invocationContext.getParameters());
+        logger.info("Executing the called method");
+        Object possibleReturn = invocationContext.proceed();
+        logger.info("The object the method was invoked on:" + invocationContext.getTarget().getClass().getName());
+
+        return possibleReturn;
+
+    }
+}
+
+Step 3: Inside service, you have to annotate with InterceptorBindinAnnotation
+    @LogEvent
+    public Book createBook() {
+        Book book = new Book("Quarks In Action", 1000f, "Subramanian");
+        book.setIsbn(numberGenerator.generateNumber());
+        return book;
+    }
+   @GET
+    @LogEvent
+    public String sayGreet() {
+        return haigreeter.sayGreet() + " " + hellogreeter.sayGreet();
+    }
+..............................................................................................
+..............................................................................................
+                           Private keyword on Dependency field
+
+Quarkus and its native image generation performs better CDI work without private members. Dependency injection requires a lot of Reflection API usage, which is very expensive. In the interest of generating better-performing native images, don’t use the private modifier for fields. Stick with package-level access for class-level variables.
+......................................
+Quarkus-Only Enhancements to CDI Quarkus enriches its implementation of CDI in ArC, by adding the following features, among others.
+.............................................................................................
+
+Assignment -3 : 
+ You have to build book Resource
+
+/api/books
+=>FindAll books
+=>findBook by isbn, author
+=>filter books by category and language - userinterface,microservices
+=>save new book 
+=>remove existing book - by isbn
+=>update book information
+
+Model : isbn,author,title,publisher,dateofpublishing,edition
+
+Database: in memory datastructure -  List or Set or Map - Findout approiate collection
+
+Features:
+
+->Resource Locators  
+->The api should return data in two formats - XML and JSON -negoation
+->Exception Handling
+   ->Suppose if given bookid not available
+  Add : Resouce Specific Exception class 
+        Global Exceptions
+->Add BookService Layer , keep all book apis,From Rest api you have to call service methods
+  Use DI
+
+New Features to be added:
+
+1.Generate 16 digit ISBN and 32 digit ISBN code via ISBN Generator class
+2.Inject ISBNGenerator ServiceBean into BookService - Which ISBN Digit you want- DI
+3.Inject book authors and price as DI into BookService class
+4.You have to write interceptor for BookService Bean to watch the book operations 
+
+
 
 
 
