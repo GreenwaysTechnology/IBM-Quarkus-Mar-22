@@ -1,0 +1,38 @@
+##This is custom property
+#myuser.name=Subramanian
+#user.role=admin
+#user.password=foo
+#greeting.message=Hello,Property File
+##greeting.message=12
+##Customer property
+#customer.id=1
+#customer.name=Subramaian
+##customer.city=coimbatore
+#
+##Profile specific properties
+#%dev.message.greet=Dev Message
+##%prod.message.greet=Production Message
+
+"%prod":
+  message:
+    greet: The Message From Production Yaml
+
+"%dev":
+  message:
+    greet: The Message From Development Yaml
+  quarkus:
+    http:
+      port: 3000
+"%test":
+  greeter:
+    message: The message From Test
+greeter:
+  name: Subramanian
+  message: Hello,From YAML
+  date: Today
+myuser:
+  name: Myuser
+cust:
+  firstName: Subramanian
+  address:
+    city: Delhi

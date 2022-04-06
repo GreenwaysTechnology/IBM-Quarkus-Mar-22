@@ -2261,34 +2261,651 @@ New Features to be added:
 3.Inject book authors and price as DI into BookService class
 4.You have to write interceptor for BookService Bean to watch the book operations 
 
+..............................................................................................
+				MicroProfile Spec- Config
+..............................................................................................
+
+ A Quarkus application and Quarkus itself (core and extensions) are both configured via the same mechanism that leverages the SmallRye Config API an implementation of the MicroProfile Config specification.
 
 
+Config Sources:
+  The place from where the configuration data is present.
 
 
+1.(400) System properties
+
+2.(300) Environment variables
+
+3.(295) .env file in the current working directory
+
+4.(260) Quarkus Application configuration file in $PWD/config/application.properties
+
+5.(250) Quarkus Application configuration file application.properties in classpath
+
+6.(100) MicroProfile Config configuration file META-INF/microprofile-config.properties in classpath
+
+7.Third Party Configuration infrastructure
+  consul,kubernetes,zookeeper,git,external webserver etc.....
+
+ A configuration property lookup starts by the "highest ordinal configuration source available and works it way down to other sources until a match is found". This means that any configuration property may override a value just by setting a different value in a higher ordinal config source. For example, a property configured using an environment property overrides the value provided using the application.properties file.
+
+.............................................................................................
+				  Property Implementation
+............................................................................................
+How to read properties from the application.property file:
+
+application.properties
+#This is custom property
+user.name=Subramanian
+user.role=admin
+user.password=foo
+greeting.message=Hello,Property
+
+package org.acme.service;
+
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class GreetingService {
+    //inject application.property file property
+    @ConfigProperty(name = "greeting.message")
+    String message;
+
+    public String sayHello() {
+        return message;
+    }
+}
+package org.acme;
+
+import org.acme.service.GreetingService;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+@Path("/hello")
+public class GreetingResource {
+
+    @Inject
+    GreetingService greetingService;
+
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String hello() {
+        return greetingService.sayHello();
+    }
+}
+What if the property is not supplied? - no property is present?
+
+-You will get 
+
+java.util.NoSuchElementException: SRCFG00014: The config property greeter.message is required but it could not be found in any config source
+	at io.smallrye.config.SmallRyeConfig.convertValue(SmallRyeConfig.java:307)
+	at io.smallrye.config.inject.ConfigProducerUtil.getValue(ConfigProducerUtil.java:81)
+	at io.quarkus.arc.runtime.ConfigRecorder.validateConfigProperties(ConfigRe
+
+Solution : 
+
+default Value
+package org.acme.service;
+
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class GreetingService {
+    //inject application.property file property
+    @ConfigProperty(name = "greeting.message", defaultValue = "default")
+    String message;
+
+    public String sayHello() {
+        return message;
+    }
+}
+What if i have more propeties?
+
+greeter.message=Hello,From Property
+greeter.name=Subramanian
+greeter.date=today
+
+How to read properties via program without annotation?
+
+package org.acme.service;
+
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class GreetingService {
+
+    public String getUserInfo() {
+        Config config = ConfigProvider.getConfig();
+        // return config.getValue("myuser.name", String.class);
+        return config.getOptionalValue("myuser.name", String.class).orElse("bar");
+    }
+
+}
+............................................................................................
+System Properties:
+
+ System properties are supplied through -D flag during startup.
+
+Dev Mode:
+
+ mvn  compile quarkus:dev  -Dgreeter.message=Hello,FromSystem
+ 
+How to test ?
+ Run the application, see from where the property is coming
+
+Keep the property in the application.property file, and see the difference.
+
+if same property present in system and application.properties who will win ? System because it has the highest ordianal value.
+
+ 
+Production Mode
+ -JVM- Runnar Jar
+    java -Dgreeter.message=Hello,FromSystem -jar target/quarkus-app/quarkus-run.jar
+
+-Native Mode
+    export GREETER_MESSAGE=Hello,FromSystem;   ./target/myapp-runner 
+
+..............................................................................................
+			How to read Properties from Envinonment Variables
+..............................................................................................
+
+In Unix/Linux,Mac, How to set env variables
+
+export VariableName=value
+
+In windows
+
+SET VariableName=value
+eg:
+E:\session\IBM\2022\march\quarkus\code-with-config>SET greeting.message=Hello,From Env Variable
+
+E:\session\IBM\2022\march\quarkus\code-with-config>mvnw compile quarkus:dev
 
 
+What if i have 
+.greeter.message property in application.property file
+and supply via Env variable
+and supply via system property 
+
+Which property value will be displayed?
+  -system property.
+.............................................................................................
+			     	.env file
+
+env files isloate all env variables and group into single source of the truth
+
+.env file in the current working directory
+
+QUARKUS_DATASOURCE_PASSWORD=youshallnotpass 
+The name QUARKUS_DATASOURCE_PASSWORD the same conversion rules used for Environment variables.
+For dev mode, this file can be placed in the root of the project, but it is advised to not check it in to version control.
 
 
+steps:
+
+1.create .env file inside project root dir
+
+config-app
+src
+target
+.env
+
+2.Add config information inside .env file
+ -Name of the Property should be UPPERCASE_UPPERCASE=value like Env variable
+
+.env
+GREETER_MESSAGE=Hello,FromENVFILE
 
 
+3.build app and run test
+
+http://localhost:8080/hello
+Subramanian Hello,FromENVFILE today
+..............................................................................................
+..............................................................................................
+		      Can We have multiple application.properties 
+............................................................................................
+
+Yes , we can multiple application.properties files
 
 
+Locations:
+ 
+1.
+src
+ |
+ main
+  |
+  resources
+     application.proprties
+
+2.App-name - config-app
+   
+  config
+	|
+     application.properties
+
+ src
+ |
+ main
+  |
+  resources
+     application.proprties
+
+You have to run in production mode , for the first file options
+public String configFolder() {
+        Config config = ConfigProvider.getConfig();
+        // return config.getValue("myuser.name", String.class);
+        return config.getOptionalValue("myprop.value", String.class).orElse("bar");
+    }
+
+-mvn clean
+-mvn package
+-java -jar target/quarkus-app/quarkus-run.jar
+.............................................................................................
+			   .............................................................................................
+		How to externalize the property injections into Separate Program
+.............................................................................................
+
+Use case:
+
+import javax.ws.rs.Path;
+
+@Path("/customer")
+public class CustomerResource {
+
+    @ConfigProperty(name = "firstName")
+    String firstName;
+    String city;
+    String state;
+    String lastName;
+
+}
+Grouping properties with @ConfigurationProperties
+
+package org.acme;
 
 
+import io.quarkus.arc.config.ConfigProperties;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+//import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+@ConfigProperties(prefix = "cust")
+public class CustomerConfiguration {
+    @ConfigProperty(name = "name", defaultValue = "default Customer Name")
+    public String name;
+}
+
+application.properties
+cust.name=foo
 
 
-  
+package org.acme;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/customer")
+public class CustomerResource {
+
+    @Inject
+    CustomerConfiguration custConfig;
+
+    @GET
+    public String customerInfo() {
+        //  return custConfig.firstName;
+        return custConfig.name + "Hello";
+    }
+}
+..............................................................................................
+
+.............................................................................................
+
+@ConfigProperties has been deprecated: dont use in latest Quarkus implementations:
+...................................................................................
+
+Use @ConfigMapping annotation on interface level
+
+application.properties
+cust.name=Subramanian
+
+@ConfigMapping(prefix="cust")
+public interface CustomerConfiguration {
+
+   //name
+    String name();
+
+}
+package org.acme;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/customer")
+public class CustomerResource {
+
+    @Inject
+    CustomerConfiguration custConfig;
+    @GET
+    public String customerInfo() {
+        return custConfig.name();
+    }
+}
+
+Res:
+http://localhost:8080/customer
+
+Subramanian
+.............................................................................................
+How to configure default values in the @ConfigMapping annotation
+
+@ConfigMapping(prefix = "cust")
+public interface CustomerConfiguration {
+    String name();
+}
+
+There is type provided by java " java.util.Optional<T>":
+
+Optional class helps to convert null into usefull defaults.
+
+Java has the very problem is NullPointerException.
 
 
+ eg:
+    Customer customer= service.findById(10)
+    log.info(customer.getCity());
+
+   The result would be
+   -Customer
+       or
+   -null
+if there is no customer which throws null pointer exception?
+
+How to solve this problem?
+
+Way - 1
+  if(customer!=null){ 
+     log.info(customer.getCity());
+  }else{
+
+     log.info("customer not found")
+  }
+
+Way -2
+
+     String city = service.findById(10).orElse("Default City")
+
+..........................................................................................
+application.properties
+#cust.name=Subramanian
+
+@ConfigMapping(prefix = "cust")
+public interface CustomerConfiguration {
+    Optional<String> name();
+}
+
+@GET
+ public String customerInfo() {
+        return custConfig.name().orElse("default Name");
+   }
+}
+.............................................................................................
+
+.............................................................................................
+				   Nested properties
+
+application.properties
+cust.address.city=coimbatore
+
+@ConfigMapping(prefix = "cust")
+public interface CustomerConfiguration {
+    Optional<String> name();
+    Address address();
+    //inner type
+    interface Address {
+        Optional<String> city();
+    }
+}
+    public String customerInfo() {
+        String city = custConfig.address().city().orElse("coimbatore");
+        return custConfig.name().orElse("default Name") + " " + city;
+    }
+}
+.............................................................................................
+Programmetic access
+
+SmallRyeConfig config = ConfigProvider.getConfig.unWrap(SmallRyeConfig.class);
+CustomerConfiguration cust=config.getConfigMapping(CustomerConfiguration.class);
+............................................................................................
+
+What if application.properties key name is different from programmetic name
+
+application.properties
+cust.firstName=Subramanian
 
 
+@ConfigMapping(prefix = "cust")
+public interface CustomerConfiguration {
+    @WithName("firstName")
+    Optional<String> name();
+    Address address();
+    //inner type
+    interface Address {
+        Optional<String> city();
+    }
+}
+..............................................................................................
+					Profiles
+.............................................................................................
+
+Profiles:
+  The environment where the application is running
+
+1.dev
+2.test
+3.prod
+
+Profile in the the property name:
+
+%{profile-name}.config.name
+
+Profile Names in Qurakus:
+
+dev - development
+prod - production profile
+test -  test profile
+
+profile specification configuration:
+
+application.properties
+
+%dev.message.greet=messagefrom dev
+%prod.message.greet=messagefromprod
+
+.env file
+_{PROFILE}_CONFIG_KEY=VALUE
+
+_DEV_MESSAGE_GREET=VALUE
+
+eg:
+
+1.application.properties
+%dev.greeter.message=Hello,From Property Development
+%prod.greeter.message=Hello,From Property Production
 
 
+profile aware files
+
+application-profile.properties
+
+application-dev.properties
+application-prod.properties
+
+eg:
+
+Steps:
+1.Add application-prod.properties inside src/main/resources folder
+greeter.message=Hello,From Property Production&&&
+
+2.run in dev mode and test it
+
+3.run in production mode and test it.
+..............................................................................................
+..............................................................................................
+						YAML
+..............................................................................................
+YAML Getting started:
+https://www.redhat.com/en/topics/automation/what-is-yaml
 
 
+How to enable yaml configurations?
+
+quarkus ext add config-yaml
+
+<dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-config-yaml</artifactId>
+</dependency>
+
+old properties- application.properties
+%dev.greeter.message=Hello,From Property Development!!!
+#%prod.greeter.message=Hello,From Property Production
+greeter.name=Subramanian
+greeter.date=today
+myuser.name=Subramanian
+cust.firstName=Subramanian
+cust.address.city=Chennai
+
+application.yaml
+##This is custom property
+#myuser.name=Subramanian
+#user.role=admin
+#user.password=foo
+#greeting.message=Hello,Property File
+##greeting.message=12
+##Customer property
+#customer.id=1
+#customer.name=Subramaian
+##customer.city=coimbatore
+#
+##Profile specific properties
+#%dev.message.greet=Dev Message
+##%prod.message.greet=Production Message
+
+"%prod":
+  message:
+    greet: The Message From Production Yaml
+
+"%dev":
+  message:
+    greet: The Message From Development Yaml
+"%test":
+  greeter:
+    message: The message From Test
+greeter:
+  name: Subramanian
+  message: Hello,From YAML
+  date: Today
+myuser:
+  name: Myuser
+cust:
+  firstName: Subramanian
+  address:
+    city: Delhi
+..............................................................................................
+..............................................................................................
+				Quarkus built in properties
 
 
+Quarkus properties begin with "qurakus.modulename.property"
 
+
+"%prod":
+  greeter:
+    message: The Message From Production
+  quarkus:
+    http:
+      port: 3001
+
+"%dev":
+  greeter:
+    message: The Message From Development
+    # Update existing quarkus related properties
+    quarkus:
+      http:
+        port: 3000
+
+"%test":
+  greeter:
+    message: The message From Test
+greeter:
+  name: Subramanian
+  message: Hello,From YAML
+  date: Today
+myuser:
+  name: Myuser
+cust:
+  firstName: Subramanian
+  address:
+    city: Delhi
+
+Yaml files:
+
+application.yaml
+application-prod.yaml
+config/application.yaml
+..............................................................................................
+Assignment -4 : 
+ You have to build book Resource
+
+/api/books
+=>FindAll books
+=>findBook by isbn, author
+=>filter books by category and language - userinterface,microservices
+=>save new book 
+=>remove existing book - by isbn
+=>update book information
+
+Model : isbn,author,title,publisher,dateofpublishing,edition
+
+Database: in memory datastructure -  List or Set or Map - Findout approiate collection
+
+Features:
+
+->Resource Locators  
+->The api should return data in two formats - XML and JSON -negoation
+->Exception Handling
+   ->Suppose if given bookid not available
+  Add : Resouce Specific Exception class 
+        Global Exceptions
+->Add BookService Layer , keep all book apis,From Rest api you have to call service methods
+  Use DI
+
+->Generate 16 digit ISBN and 32 digit ISBN code via ISBN Generator class
+->Inject ISBNGenerator ServiceBean into BookService - Which ISBN Digit you want- DI
+->Inject book authors and price as DI into BookService class
+->You have to write interceptor for BookService Bean to watch the book operations 
+
+New features:
+ -Add Configuration data for some book, read from the configuration source
+ -Profile based config
+ -properties
+ -Yaml
+ -@config vs @configMapping
 
 
 
