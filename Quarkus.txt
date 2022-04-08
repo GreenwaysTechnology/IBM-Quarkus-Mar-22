@@ -3871,9 +3871,580 @@ New Features:
     ->Using DAO/Repository Pattern
   Try both Patterns , see the differences.
 ..............................................................................................
-				Service Communication Patterns
+				Micro Service Communication Patterns
+..............................................................................................
+Micro Service:
+ It is an architectural  style to build distributed apps.
+Monolith Model
+ It is also architectural style to build distributed apps.
 
-REST To REST
+Micro service Patterns:
+ loosly coupled app.
+The big application is broken into smaller units,Each unit is called service.
+
+Service is nothing but program which represents domain in biz.eg inventory,purchase,order...
+
+Services are also called as "APIs".
+
+What are different ways to represent services /api?
+
+A.WebServices
+1.SOAP Service
+2.REST Service
+
+RESTFull Service or Rest api is most popular pattern - Quarkus - RestEasy.
+
+2.GraphQL service
+
+3.RPC Service - Remote Procedural Call
+   gRPC framework
+
+
+Service communications:
+
+Service to Service , service could be any type.
+
+REST to RPC
+RPC to REST
+
+REST To REST 
+
+Service Communication need two things
+
+1.transport layer - HTTP or TCP or http 2, or any protocal supported by services
+
+2.data format  -  json or xml or binary or text etc....
+
+
+..............................................................................................
+				1.REST Style Communication in Quarkus
+..............................................................................................
+
+REST TO REST In Quarkus
+1.MicroProfile  rest client
+2.Vertx Web Client Api 
+3.Java 11 HTTP Client api
+
+MicroProfile Rest Client:
+The MicroProfile Rest Client provides a "type-safe approach" to invoke RESTful services over HTTP.
+As much as possible the MP Rest Client attempts to use Jakarta RESTful Web Services 2.1 APIs for consistency and easier re-use.
+
+SmallRye RestClient is the reference implementation to talk to REST API over http.
+
+Quarkus uses this implementation to achive Service communication.
+.................................................................
+
+
+Steps:
+
+1.declare model class to represent REST response type.
+
+package org.acme.models;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import java.util.List;
+
+//mapper class for incoming response
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Country {
+    public String name;
+    public String capital;
+    public List<Currency> currencies;
+    public static class Currency {
+        public String code;
+        public String name;
+        public String symbol;
+    }
+}
+
+2.Proxy Class Implementation
+Proxy class is bridge class between two services.
+Takes care of serizlation and deserizalation , marshalling,demarshalling
+MicroProfile Rest Client takes generating proxy classes on fly. we need to provide high level information via interface.
+
+
+Interface which exposes apis which communicates remote services
+
+package org.acme.rest.client;
+
+import org.acme.models.Country;
+import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import java.util.Set;
+
+@RegisterRestClient
+@Path("/v3.1")
+public interface CountryService {
+    //api to invoke third party
+    @Path("/name/{name}")
+    @GET
+    Set<Country> getByName(@PathParam("name") String name);
+}
+
+3.Configuring in application.properties
+
+Syntax
+serviceName/mp-rest/url=url
+serviceName/mp-rest/scope=javax.inject.SingleTon
+
+org.acme.rest.client.CountryService/mp-rest/url=https://restcountries.com
+org.acme.rest.client.CountryService/mp-rest/scope=javax.inject.Singleton
+
+4.Dependency Injection.
+package org.acme;
+
+import org.acme.models.Country;
+import org.acme.rest.client.CountryService;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.resteasy.annotations.jaxrs.PathParam;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import java.util.Set;
+
+@Path("/country")
+public class CountryResource {
+
+    @Inject
+    @RestClient
+    CountryService countryService;
+
+    @GET
+    @Path("/name/{name}")
+    public Set<Country> findByCountry(@PathParam("name") String name) {
+        return countryService.getByName(name);
+    }
+
+}
+
+http://localhost:8080/country/name/oman
+
+[
+{
+capital: [
+"Muscat"
+]
+}
+]
+
+Code Refactoring:
+
+if we want to simplifiy in the application.properties with respect to Service Name
+
+application.properties
+org.acme.rest.client.CountryService/mp-rest/url=https://restcountries.com
+org.acme.rest.client.CountryService/mp-rest/scope=javax.inject.Singleton
+
+refactored configuration
+country-api/mp-rest/url=https://restcountries.com
+country-api/mp-rest/scope=javax.inject.Singleton
+
+@Path("/v3.1")
+@RegisterRestClient(configKey = "country-api")
+public interface CountryService {
+    //api to invoke third party
+    @Path("/name/{name}")
+    @GET
+    Set<Country> getByName(@PathParam("name") String name);
+}
+.............................................................................................
+
+Assignment - 6.
+
+Already you have BookService app.
+ change bookservice port from 8080 - 3000
+
+http://localhost:3000/api/books
+  /list
+  /save
+  /edit
+  /delete
+
+Req:
+ You have to build new app called PublisherService App.
+ Port : 3001.
+
+You have to write service which should consume BookService  via RestClient Spec
+
+Url pattern
+ localhost:3001/api/publisher/book/list   - 
+ localhost:3001/api/publisher/book/create -
+..............................................................................................
+				Reactive Programming
+..............................................................................................
+
+What is Reactive?
+ Response oriented Programming /event driven programming.
+
+Why Reactive Programming?
+  Reactive Programming provides reliable distributed system.
+
+Common characteristics of Microservice Distributed System
+https://www.reactivemanifesto.org/
+
+1.Responsive
+   The System should respond in a timely manner - on Time
+
+2.Reslient
+   Any distributed System subject to fail.
+  if failures, we need to handle properly- this is called fault/failure/reslient Management.
+3.Elastic 
+    if more work load, the system should be expaneded automatically and if there is no load     system should decrease the resources
+4.Message driven
+   The system components(services) should communicate each other via messages without blocking each other- Non blocking.
+
+How to build reactive system?
+
+Using ReactiveX specification.
+   
+   ReactiveX is lib or framwork written any lanugage, helps to build declarative data oriented/message oriented applications.
+
+Where is reactive is used?
+
+  Where service communication is there or where data is moved among programs
+.............................................................................................
+				 Data Is every thing
+..............................................................................................
+
+In distribtued systems , data is moved from one program to another program.
+
+Traditional Data transfer:
+
+Let us take two java class
+package com.ibm.traditional;
+
+import java.util.List;
+
+public class OrderService {
+    public List<Order> findAll() {
+        return List.of(new Order(1, "Books"), new Order(2, "Phone"));
+    }
+}
+
+
+package com.ibm.traditional;
+
+import java.util.List;
+
+public class CustomerService {
+    private OrderService orderService;
+
+    public CustomerService() {
+    }
+
+    public CustomerService(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    public OrderService getOrderService() {
+        return orderService;
+    }
+
+    public void setOrderService(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    public List<Order> getAllOrders() {
+        return this.orderService.findAll();
+    }
+}
+package com.ibm.traditional;
+
+public class Order {
+    private int orderId;
+    private String productName;
+
+    public int getOrderId() {
+        return orderId;
+    }
+
+    @Override
+    public String toString() {
+        return "Order{" +
+                "orderId=" + orderId +
+                ", productName='" + productName + '\'' +
+                '}';
+    }
+
+    public void setOrderId(int orderId) {
+        this.orderId = orderId;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public Order(int orderId, String productName) {
+        this.orderId = orderId;
+        this.productName = productName;
+    }
+}
+
+
+package com.ibm.traditional;
+
+public class App {
+    public static void main(String[] args) {
+        CustomerService customerService = new CustomerService(new OrderService());
+        System.out.println(customerService.getAllOrders());
+    }
+}
+
+Features:
+
+Actors:
+1.provider  -OrderService
+2.Consumer  -CustomerService
+
+1.CustomerService is pulling data from the OrderService
+ ->Customer always controls Orderservice, customer always ask data.
+ ->Tight coupling between services
+ ->Data is reterived one shot,which degrades performance when more data is reterived.
+ ->if you want to process the data like sql quieries, inside application is difficult 
+   eg: i want only orders which are in stock.
+
+  "PULL Based Program"
+
+2.Reactive Way of getting and processing data - Push Based Programming
+
+  ->CustomerService will not able to control data reterival , Where Customer Service is waiting for data
+   
+   ->OrderService(Publisher/Producer/Provider) will push the data to CustomerService (Consumer/Subscriber/Listener).
+
+
+   OrderService---->push data ---------->CustomerService
+..............................................................................................
+			    PUSH Based Programming
+
+
+Producer need to push data where Consumer need to listen data - this forms a arch called "Event Driven Programming". 
+    It is implemented via design pattern called "Observable Design Pattern"
+
+Observable Desing pattern enables "streaming model" - Stream is nothing but flow of data in sequence.
+
+We can observe the stream, meaning that we can apply stream processing -  filtering,transformation,coimbining.
+  Streaming processing need to be done using apis.
+
+How to write api?
+   Usin functional programming principles, like declarative,immutable and pure functions 
+in reactive programming apis are called operators.
+............................................................................................
+
+Reactive Programming = {Observable Design pattern + functional Programming Principles + Iterator Design Pattern(reading) }
+............................................................................................
+				How to build Reactive Programming
+.............................................................................................
+
+Reactive Programming is language independent.
+https://reactivex.io/intro.html
+
+Reactive Programming in java:
+
+Reactive Programming in java is based on spec called "reactive Stream spec"
+  https://www.reactive-streams.org/
+
+There are many libs
+
+1.rxjava - Netflix
+2.projectreactor - VMWare
+3.Mutiny - RedHat /SmallRye Project
+
+
+Quarkus uses Mutiny as Reactive Wrapper.
+
+
+Actors:
+1.Publisher
+2.Consumer
+
+Mutiny Publisher
+
+1.Uni
+    Publisher can emit 0..1 element only
+2.Multi
+   Publisher can emit 0...N elements
+
+
+Any object can emit event(data +signal)
+
+Events
+ -data event
+ -error event
+ -complete event
+
+What is Uni and Multi?
+ Both are objects can emit event.
+
+Uni can emit only one event either data,error,or comple
+ 0 to 1
+
+Multi 
+  Can emit sequence of more events
+ 0 to N events.
+
+Where can i use mutiny?
+ Mutiny has integreated with quarkus- quarkus-mutiny extension, mutiny has integrated with vertx.
+
+Subscriber:
+  Object has  listener for listening data.
+
+
+package com.ibm.reactive;
+
+public class App {
+    public static void main(String[] args) {
+        CustomerService customerService = new CustomerService(new OrderService());
+        System.out.println(customerService.getAllOrders());
+        customerService.processOrderStream();
+        customerService.processSequenceStream();
+    }
+}
+package com.ibm.reactive;
+
+import java.util.List;
+
+public class CustomerService {
+    private OrderService orderService;
+
+    public CustomerService() {
+    }
+
+    public CustomerService(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    public OrderService getOrderService() {
+        return orderService;
+    }
+
+    public void setOrderService(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    public List<Order> getAllOrders() {
+        return this.orderService.findAll();
+    }
+
+    public void processOrderStream() {
+        //subscriber / listner
+        orderService.streamOrder().subscribe().with(orders -> {
+            System.out.println(orders);
+        });
+    }
+
+    public void processSequenceStream() {
+        orderService.streamSequence().subscribe().with(order -> {
+            System.out.println(order);
+
+        });
+    }
+}
+package com.ibm.reactive;
+
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+
+import java.util.List;
+
+public class OrderService {
+    //traditional pull api
+    public List<Order> findAll() {
+        return List.of(new Order(1, "Books", true), new Order(2, "Phone", false));
+    }
+
+    //reactive push api
+    //publisher
+    public Uni<List<Order>> streamOrder() {
+        //return stream.
+        List<Order> orderList = List.of(new Order(1, "Books", true), new Order(2, "Phone", false));
+        return Uni.createFrom().item(orderList);
+    }
+
+    public Multi<Order> streamSequence() {
+        //return stream.
+        return Multi.createFrom().
+                items(new Order(1, "Books", true), new Order(2, "Phone", false))
+                .filter(order -> order.isInStock());
+    }
+
+}
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
