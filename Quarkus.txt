@@ -4377,6 +4377,593 @@ public class OrderService {
     }
 
 }
+..............................................................................................
+				Reactive and Async -Non Blocking applications
+..............................................................................................
+
+What is Blocking?
+
+ Blocking means the process or thread is blocked until some operation is completed.
+
+Eg: WebServers
+
+All Webservers works based on the concept called "Request Per Thread Model"
+
+Every Client Request is mapped inside webserver as a "single Thread". Every Client is handled by a separate thread of exection.
+
+Threading and Webservers:
+
+1.Every request is mapped with a single Thread, so 100 req, 100 threads
+  100 req = 100 threads
+2.if the thread is waiting for an io operations like database calls,files,until the result is recived , Thread is blocked.
+
+3.When the thread is blocked for long time, the Cpu moves the thread from active to inactive
+  once data is ready ,The CPU again moves the sleeping thread to active mode which is called context switch.
+4.Most of the time CPU is busy with context switch which degrades the app performance.
+5.Each thread eats some amount of memory min upto 5mb memory. if more threads more memory.
+
+Solution to the above  Problem:
+
+In 2000, the specfication was published.
+
+c10k - concurrently 10 thousand  connections if webserver is handling means that is good.
+
+Objective:
+->To reduce threads, if you reduce threads all problems would be solved.
+
+
+In 2001, Inside Linux operting system, new api were introduced to minimize the threads - Non blocking apis.
+
+What is Non Blocking?
+
+1.Reducing threads, using limited no of threads we do maxmimum concurrency.
+
+2.One thread can handle muliple client request by using delegation pattern
+
+3.Thread recieves request and delegate to the os and control is immediately returned to the caller thread
+
+4.Once the result is available, os sends data as event, thread can process the events, extract data, and return the data to the client.
+
+5.Since the thread processing events which is called "event loop thread".
+			
+                    Gloden Rule , Dont block Event loop thread.
+
+
+Non Blocking implmentation:
+
+1.Ngnix is the server who implemented non blocking arch first
+2.Node.js was introduced as nonblocking web servers.
+
+
+Java and Non Blocking:
+.....................
+
+Java was designed with blocking arch.
+
+Java 7, who introduced non blocking apis via package "nio".
+
+nio offers only non blocking io apis.
+
+Any web server was designed based on nio apis?
+
+In the begining , no web servers were designed based on nio.
+
+1.Apache MINA 
+   The first Non Blocking java framework
+
+Red Hat and Nio; : Netty.
+    Netty is an asynchronous event-driven network application framework
+for rapid development of maintainable high performance protocol servers & clients.
+
+This is foundational non blocking arch for java technologies.
+
+Vertx:
+  It is tookit designed for building microservices based on Netty Project.
+
+			
+				VertxApp
+				  |
+			       Vert.x Engine
+				  |
+				 Netty
+				   |
+				  NIO
+				   |
+				  JVM
+
+
+Quarkus:
+    It is non blocking async reactive framework built on the Vertx Engine
+ 
+			       Quarkus App
+				  |
+			       Vert.x Engine
+				  |
+				 Netty
+				   |
+				  NIO
+				   |
+				  JVM
+
+
+In Quarkus , Vert.x is low level engine which takes care of thread manangement, event processing.
+
+
+Note:
+   Quarkus apps can be executed in two mode
+
+ 1.Request Per thread Model -  RestEasy--- Old model web servers
+ 2.NonBlocking Application    - RestEasyReactive - Vertx Engine.
+
+
+RestEasy Reactive:
+ =>Building non blocking web apps using Vertx Engine 
+ =>Building data streaming web apps using Mutiny..
+
+RestEasy Reactive => { NonBlocking(vertx) + Data Streaming(mutiny) }
+
+
+Getting started:
+
+By default, the quarkus uses Vertx Engine, blocking threads(Worker pool threads) only
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+@Path("/hello")
+public class GreetingResource {
+
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public String hello() {
+        System.out.println(" Thread => " + Thread.currentThread().getName());
+        return "Hello RESTEasy";
+    }
+}
+
+2022-04-11 11:22:31,922 INFO  [io.qua.dep.dev.RuntimeUpdatesProcessor] (vert.x-worker-thread-0) Live reload total time: 0.909s
+ Thread => executor-thread-0
+
+
+Add 
+quarkus ext add resteasy-reactive
+
+Note:
+Remove old resteasy depedency.
+
+How to Make your code nonblocking and reactive?
+
+package org.acme;
+
+import io.smallrye.mutiny.Uni;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+@Path("/hello")
+public class GreetingResource {
+
+    @GET
+    @Produces(MediaType.TEXT_PLAIN)
+    public Uni<String> hello() {
+        System.out.println(" Thread => " + Thread.currentThread().getName());
+        return Uni.createFrom().item("Hello Reactive");
+    }
+}
+
+2022-04-11 11:29:13,954 INFO  [io.qua.dep.dev.RuntimeUpdatesProcessor] (vert.x-worker-thread-0) Live reload total time: 0.932s
+ Thread => vert.x-eventloop-thread-13
+
+Here vert.x-eventloop-thread-13  - Non blocking thread.
+
+.............................................................................................
+  		How many event loop threads would be there?
+
+
+Vertx  has been inspired largly from Node.js. You can find all node.js architecture inside 
+Vertx.
+
+In the node.js there is limitation, only one event loop thread.
+
+Vertx uses a concept called "PER CPU CORE 2 Threads".
+
+lets say i have 12 core,  => 12 * 2 = 24 Threads.
+
+............................................................................................				  Dont Block Event loop : Golden Rule
+............................................................................................
+
+What if i write blocking code inside non blocking context?
+
+What could be  blocking code?
+
+1.infinite loop
+2.Thread.sleep
+3.any blocking io operations like db
+etc.....
+
+
+
+If you write blocking code, inside non blocking contex, vertx(Quarkus) will throw error that thread has been blocked.
+
+   @GET
+    @Path("/blockme")
+    @Produces(MediaType.TEXT_PLAIN)
+    public Uni<String> blockMe() {
+        System.out.println(" Thread => " + Thread.currentThread().getName());
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return Uni.createFrom().item("Hello Blocking Code");
+    }
+
+x-eventloop-thread-18,5,main] has been blocked for 2194 ms, time limit is 2000 ms: io.vertx.core.VertxException: Thread blocked
+        at java.base@11.0.11/java.lang.Thread.sleep(Native Method)
+        at org.acme.GreetingResource.blockMe(GreetingResource.java:27)
+        at org.acme.GreetingResource_Subclass.blockMe$$superforward1(Unknown Source)
+        at org.acme.GreetingResource_Subclass$$function$$1.apply(Unknown Source)
+        at io.quarkus.arc.impl.AroundInvokeInvocationContext.proceed(AroundInvokeInvocationContext.java:54)
+
+
+What if  i want to write blocking code inside non blocking code?
+
+  @GET
+    @Path("/blockme")
+    @Produces(MediaType.TEXT_PLAIN)
+    @Blocking
+    public Uni<String> blockMe() {
+        System.out.println(" Thread => " + Thread.currentThread().getName());
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return Uni.createFrom().item("Hello Blocking Code");
+    }
+
+@Blocking annotation will run this code in a worker pool thread automatically.
+-context-propagation, vertx]
+ Thread => executor-thread-0
+............................................................................................
+				 What about other wrappers
+
+
+Quarkus offers all extensions with Reactive and Nonblocking.
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-resteasy-reactive</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-reactive-panache</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-reactive</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-reactive-pg-client</artifactId>
+    </dependency>
+
+package org.acme.entity;
+
+import io.quarkus.hibernate.reactive.panache.PanacheEntity;
+
+import javax.persistence.Entity;
+import java.time.LocalDate;
+
+@Entity
+public class Person extends PanacheEntity {
+    public String name;
+    public LocalDate birth;
+}
+.............................................................................................
+			      Vertx Concepts
+.............................................................................................
+
+AKKA - Actor Model Based.
+
+Actor model is architure model which describes how data can be exechaned among programs we call services using "message oriented and event driven".
+
+Vertx inspired akka with respect to message passing techniques, now we can pass messages using vertx  "Event Bus".
+
+			   Micro Service Communications
+
+Event Bus:
+ -Event bus is object through which we can exchange messages async.
+ -Event bus is just like message broker which in memory message broker
+ -Event bus uses queue to store messages
+ -Event bus communicates via tcp protocal
+ -Event bus can exchange any type of data- including json.
+ -Event can be used to send and receive messages across the system.
+
+Quarkus can Use EventBus for message oriented communication.
+
+
+Event Bus has its own in memory Event queue where all message published.
+
+How consumer and publisher are connectected?
+
+ Via address :Messages are sent on the event bus to an address.
+address should be unique, can follow dns naming model
+
+ ibm.order
+ ibm.order.inventory
+
+
+Types of message Delivery:
+
+1.point to point -  
+  send messages to only one consumer.
+2.Publisher/Subscriber  - pub sub model
+  One publisher many subscribers
+3.request/reply
+    send messages to only one consumer with ack.
+
+
+
+How to use vertx Event inside Quarkus?
+
+-vertx
+
+ <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-vertx</artifactId>
+</dependency>
+
+
+Programming Steps:
+
+1.Consumer Code
+   -The Service which is listening for messages
+
+Pure vertx code
+EventBus eb = vertx.eventBus();
+
+eb.consumer("news.uk.sport", message -> {
+  System.out.println("I have received a message: " + message.body());
+});
+
+In Quarkus, we have annotation
+
+@ConsumeEvent
+
+
+Api :
+event.request -  request-reply
+eventbus.send -  point to point
+eventbus.publish - pub -sub
+
+
+Publisher Code:
+..............
+Publisher publishes message on given address
+
+package org.acme.vertx;
+
+import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.json.JsonObject;
+
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+
+@Path("/eventbus")
+public class EventBusResource {
+    @Inject
+    EventBus eventBus;
+
+    //publish message
+    @GET
+    @Path("{name}")
+    public String greetMe(@PathParam(value = "name") String name) {
+        //publish message - fire and forgot - eventbus.send -  point to point
+        JsonObject jsonObject = new JsonObject().put("name", name);
+        eventBus.send("ibm.greet", jsonObject);
+        return "Processed";
+    }
+}
+
+//Listener
+
+package org.acme.vertx;
+
+import io.quarkus.vertx.ConsumeEvent;
+import io.vertx.core.eventbus.Message;
+import io.vertx.core.json.JsonObject;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class EventConsumer {
+    //method which
+    @ConsumeEvent("ibm.greet")
+    public void handler(Message<JsonObject> name) {
+        System.out.println(name.body().encodePrettily());
+    }
+}
+
+http://localhost:8080/eventbus/ram
+
+{
+  "name" : "subramanian"
+}
+{
+  "name" : "ram"
+}
+
+..............................................................................................
+			 Request-Reply Pattern
+..............................................................................................
+
+In Resource :
+
+   @GET
+    @Path("/reply/{name}")
+    public Uni<String> greeting(@PathParam(value = "name") String name) {
+        //request-reply
+        return eventBus.<String>request(EventBusAddress.CGI_GREETINGS_REPLY, name)
+                .onItem().transform(Message::body);
+    }
+
+In Service
+
+  //reply
+    @ConsumeEvent(EventBusAddress.CGI_GREETINGS_REPLY)
+    public Uni<String> replyTo(String name) {
+        return Uni.createFrom().item(() -> name.toUpperCase()).emitOn(executor);
+    }
+..............................................................................................
+			   Pub - Sub - One to many
+.............................................................................................
+
+Resource
+  @GET
+    @Path("/publish/{name}")
+    public Uni<String> broadcast(@PathParam(value = "name") String name) {
+        eventBus.publish(EventBusAddress.CGI_GREETINGS_BROADCAST, name);
+        return Uni.createFrom().item("Published");
+    }
+
+package org.acme.vertx.eventbus;
+
+import io.quarkus.vertx.ConsumeEvent;
+import io.vertx.mutiny.core.eventbus.Message;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class HaiConsumer {
+    //reply
+    @ConsumeEvent(EventBusAddress.CGI_GREETINGS_BROADCAST)
+    public void publish(Message<String> name) {
+        System.out.println(this.getClass().getName() + " " + name.body());
+    }
+}
+
+package org.acme.vertx.eventbus;
+
+import io.quarkus.vertx.ConsumeEvent;
+import io.vertx.mutiny.core.eventbus.Message;
+
+import javax.enterprise.context.ApplicationScoped;
+
+@ApplicationScoped
+public class HelloConsumer {
+
+    //reply
+    @ConsumeEvent(EventBusAddress.CGI_GREETINGS_BROADCAST)
+    public void publish(Message<String> name) {
+        System.out.println(this.getClass().getName() + " " + name.body());
+    }
+}
+.............................................................................................
+			  Vertx web client apis : HTTP Service Communication
+............................................................................................
+
+<dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
+</dependency>
+
+
+In order to use webclient, we need two dependency:
+
+1.Vertx
+2.WebClient
+
+package org.acme.vertx;
+
+import io.smallrye.mutiny.Uni;
+import io.vertx.ext.web.client.WebClientOptions;
+import io.vertx.mutiny.core.Vertx;
+import io.vertx.mutiny.ext.web.client.HttpResponse;
+import io.vertx.mutiny.ext.web.client.WebClient;
+
+import javax.annotation.PostConstruct;
+import javax.inject.Inject;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/myclient")
+public class WebClientResource {
+    @Inject
+    Vertx vertx; // Inject the managed io.vertx.mutiny.core.Vertx instance
+    private WebClient client;
+
+    //
+    @PostConstruct
+    public void init() {
+        System.out.println("init");
+        client = WebClient.create(vertx, new WebClientOptions()
+                .setDefaultHost("localhost")
+                .setDefaultPort(8080)
+        );
+    }
+
+    @GET
+    public Uni<String> Myapi() {
+        return client
+                .get("/hello").send()
+                .onItem().transform(HttpResponse::bodyAsString);
+    }
+}
+
+
+Service Communication:
+
+1.HTTP
+ -Microprofile Restclient
+ -Vertx WebClient
+2.TCP - Message driven
+ -Event Bus
+..............................................................................................
+				
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
