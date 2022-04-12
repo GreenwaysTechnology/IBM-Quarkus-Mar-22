@@ -4492,8 +4492,8 @@ In Quarkus , Vert.x is low level engine which takes care of thread manangement, 
 Note:
    Quarkus apps can be executed in two mode
 
- 1.Request Per thread Model -  RestEasy--- Old model web servers
- 2.NonBlocking Application    - RestEasyReactive - Vertx Engine.
+ 1.Request Per thread Model -  RestEasy--- Vertx Engine with Worker pool threads- Old model web servers
+ 2.NonBlocking Application    - RestEasyReactive - Vertx Engine ->Event loop threads
 
 
 RestEasy Reactive:
@@ -4611,7 +4611,7 @@ x-eventloop-thread-18,5,main] has been blocked for 2194 ms, time limit is 2000 m
 
 What if  i want to write blocking code inside non blocking code?
 
-  @GET
+    @GET
     @Path("/blockme")
     @Produces(MediaType.TEXT_PLAIN)
     @Blocking
@@ -4924,21 +4924,562 @@ Service Communication:
 2.TCP - Message driven
  -Event Bus
 ..............................................................................................
-				
+				   Micro Service Resilence Patterns
+.............................................................................................
+
+What is fault?
+
+Any System Subject to fail.
+
+Layers of system and its failures
+
+-Hardware failures
+-OS Failures
+-Network failures
+-Application failures
+
+Software failures:
+..................
+->JVM failures
+  -out of memory
+  -heap dump errors
+  -process related errors
+  -thread related errors
+-How to fix failures
+  -there tools available to detect memories,threads,heap dump 
+   -jmeter,heapdump errors, apache benchmark....
+
+Application failures:
+
+->Exception handling
+ file handling,database handling, call third party apis,networking, biz use case failures.
+
+-How to fix application errors
+  -Exception handlers--- give report , we can decide what do.
+
+try{
+ //what type of code i can write
+ //The code subject to fail, risky code. : The code may cause error any time.
+
+}
+catch(Exception e){
+  //for recovery code.
+  //you can report to other code or ui
+  //you can log those errors, you can audit latter.
+}
+..............................................................................................
+				Micro Services and Error Handling
+..............................................................................................
+
+You have to have idea that the system will fail at any point of time, if failure comes how to handle that.
+
+System failures and how to handle via patterns: Resilience Patterns:
+
+Quarkus and Falut Tolerance: 
+  Quarkus provides MicroProfile Fault Tolerance apis. 
+
+Patterns:
+
+1.BulkHead
+2.Timeout
+3.Retry
+4.CircuitBreaker
+
+Step
+
+quarkus create app org.acme:microprofile-fault-tolerance-quickstart  --extension=resteasy,smallrye-fault-tolerance,resteasy-jackson  --no-code
+
+cd microprofile-fault-tolerance-quickstart
 
 
+BulkHead:
+   The idea behind bulkhead is to set a limit on the number of concurrent calls we make to a remote service.
+
+ The Bulkhead pattern is to prevent faults in one part of the system from cascading to the entire system, which might bring down the whole system. The implementation is to limit the number of concurrent requests accessing to an instance.
+
+@Bulkhead(5) // maximum 5 concurrent requests allowed
+public Connection serviceA() {
+       Connection conn = null;
+       conn = connectionService();
+       return conn;
+}
+
+Steps:
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+
+@Path("/bulk")
+public class BulkHeadResource {
+
+    @GET
+    @Bulkhead(value = 5)
+    @Fallback(fallbackMethod = "handleBulkHead")
+    public Response dontOverload() {
+        System.out.println("Api is called");
+        return Response.ok("bulk").build();
+    }
+
+    public Response handleBulkHead() {
+        System.out.println("fallback response");
+        return Response.ok("sorry System busy").build();
+    }
+}
+
+How to test bulk head?
+
+you have to install any load testing tool
+-apache benchmark
+-Soap UI benchmark
+-node based tools
+ -loadtest
+
+How to install load test?
+
+npm install loadtest -g
+
+>loadtest -n 100 -c 10 http://localhost:8080/bulk
+............................................................................................
+
+What is Timeout?
+   Setting a limit on the amount of time we are willing to wait for an operation to complete is called time limiting.
+   If the operation does not complete within the time we specified, we want to be notified about it with timeout Error.
+
+Sometime it is refered to as "setting a deadline"
+
+  @Timeout(400) // timeout is 400ms
+   public Connection serviceA() {
+       Connection conn = null;
+       conn = connectionService();
+       return conn;
+}
+
+eg:
+import org.eclipse.microprofile.faulttolerance.Timeout;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/timeout")
+public class TimeoutResource {
+
+    @GET
+    @Timeout(5000)
+    public String delay() throws InterruptedException {
+        randomDelay();
+        return "Hello";
+    }
+
+    private void randomDelay() throws InterruptedException {
+        // introduce some artificial delay
+        Thread.sleep(6000);
+    }
+}
+
+Here we test our code , the response is returned after 6000ms , but exepcted duration is 5000ms
+
+org.jboss.resteasy.spi.UnhandledException: org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException: Timeout[TimeoutResource#delay] timed out
+        at org.jboss.resteasy.core.ExceptionHandler.handleApplicationException(ExceptionHandler.java:105)
+        at org.jboss.resteasy.core.ExceptionHandler.handleException(ExceptionHandler.java:359)
+        at org.jboss.resteasy.core.SynchronousDispatcher.writeException(SynchronousDispatcher.java:218)
+
+How to handle TimeoutException?
+ Using fallback 
+
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Timeout;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+
+@Path("/timeout")
+public class TimeoutResource {
+
+    @GET
+    @Timeout(5000)
+    @Fallback(fallbackMethod = "getFromCache")
+    public String delay() throws InterruptedException {
+        randomDelay();
+        return "Hello";
+    }
+
+    private void randomDelay() throws InterruptedException {
+        // introduce some artificial delay
+        Thread.sleep(6000);
+    }
+
+    public String getFromCache() {
+        return "Fallback Response";
+    }
+}
+..............................................................................................	..............................................................................................	
+
+				 Fail fast and Fail slow -later
+					 Retry
+.............................................................................................
+
+Fail fast:
+ As soon as failure is dedecuted, either we throw exception, or we redirect with fallback.
+
+eg:
+  in Bulkhead 
+   if more conncurrency access than expected , it will throw BulkHeadExection, if exception
+ you can handle via fallback.
+
+  In Timeout
+   if there is delay in response than expected timeout , it will throw TimeoutExection, if exception  you can handle via fallback.
+
+SOme times i need to give a chance to recover from the failures.
+
+For eg , i call api, which fails due to network failure, i dont want to handle exception, i need to give chance to recover from those errors.
+
+Re-try - try automatically n of times within some time period of time.
+
+When you retry you can  customize when to retry.
+
+eg: 
+  i dont want to retry for SocketException,FileNotFoundException,MemoryoverFlowException
+  biz use cases like Login
+  if login failed in first attempt, dont retry.
+
+import org.eclipse.microprofile.faulttolerance.Fallback;
+import org.eclipse.microprofile.faulttolerance.Retry;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
+
+@Path("/retry")
+public class RetryResource {
+    private AtomicLong counter = new AtomicLong(0);
+    private Float failRatio = 0.5f;
+
+    @GET
+    @Retry(maxRetries = 1, retryOn = RuntimeException.class)
+    @Fallback(fallbackMethod = "fallbakcoffeesList")
+    public List<String> coffees() {
+        final Long invocationNumber = counter.getAndIncrement();
+        maybeFail(String.format("CoffeeResource#coffees() invocation #%d failed", invocationNumber));
+        System.out.println("RetryResource#coffees() invocation #%d returning successfully" + invocationNumber);
+        return List.of("Coffee With Sugar", "Coffee Without Sugar", "Black Coffee");
+    }
+
+    public List<String> fallbakcoffeesList() {
+        System.out.println("Fallback");
+        return new ArrayList<>();
+    }
+
+    private void maybeFail(String failureLogMessage) {
+        // introduce some artificial failures
+        if (new Random().nextFloat() < failRatio) {
+            System.out.println(failureLogMessage);
+            throw new RuntimeException("Resource failure.");
+        }
+        //throw new RuntimeException("Resource failure.");
+    }
+}
+
+..............................................................................................
+				 Fail Fast - Circuit Breaker
+.............................................................................................
+
+A CB  is to prevent calls to remote service, if we know that the call is likely to fail or timeout. we do this so that we dont unnessarily waste critical resourcs both in our service and the  service.
 
 
+CB is state machine: which has three states
+
+1.closed state
+2.open state
+3.half open state
+
+CB is any one of the state.
+
+1.closed state:
+  Application is good, or healthy.
+
+2.Open state
+   Application has dedecuted error
+  
+3.Half open
+   It is trying to move from failure state to normal state.
 
 
+import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Fallback;
+
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.core.Response;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
+
+@Path("/cb")
+public class CircuitBreakerResource {
+    private AtomicLong counter = new AtomicLong(0);
+
+    @GET
+    @CircuitBreaker(successThreshold = 10, requestVolumeThreshold = 4, failureRatio = 0.75, delay = 1000)
+    @Fallback(fallbackMethod = "cbFallback")
+    public Response circuitBreakerApi() {
+        maybeFailcb();
+        return Response.ok(new Random().nextInt(30)).build();
+    }
+
+    public Response cbFallback() {
+        return Response.ok().entity(100000).build();
+    }
+
+    private void maybeFailcb() {
+        final Long invocationNumber = counter.getAndIncrement();
+        if (invocationNumber % 4 > 1) {
+            throw new RuntimeException("Service failed");
+        }
+    }
+}
+.............................................................................................
+				 Infrastructure
+.............................................................................................
+
+How to build Quarkus Application?
+
+Mode of Quarkus App:
+
+1.JVM mode
+   Running Quarkus apps on jvm.
+  
+1.Plain Java app - jar
+
+Types of Jar :
+
+1.normal jar
+2.uber jar - highly optimizied for production
+
+./mvnw package
+```
+It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
+Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+
+The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+
+If you want to build an _über-jar_, execute the following command:
+```shell script
+./mvnw package -Dquarkus.package.type=uber-jar
+```
+
+eg:
+java -jar target/quarkus-app/quarkus-run.jar
+__  ____  __  _____   ___  __ ____  ______
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/
+2022-04-12 12:25:50,563 INFO  [io.quarkus] (main) quarkus-deployment 1.0.0-SNAPSHOT on JVM (powered by Quarkus 2.7.5.Final) started in 0.873s. Listening on: http://0.0.0.0:8080
+2022-04-12 12:25:50,592 INFO  [io.quarkus] (main) Profile prod activated.
+2022-04-12 12:25:50,593 INFO  [io.quarkus] (main) Installed features: [cdi, resteasy, smallrye-context-propagation, vertx]
 
 
+mvnw package -Dquarkus.package.type=uber-jar
+
+How to run uber jar app?
+E:\session\IBM\2022\march\quarkus\quarkus-deployment>java -jar target/quarkus-deployment-1.0.0-SNAPSHOT-runner.jar
+__  ____  __  _____   ___  __ ____  ______
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/
+2022-04-12 12:28:58,671 INFO  [io.quarkus] (main) quarkus-deployment 1.0.0-SNAPSHOT on JVM (powered by Quarkus 2.7.5.Final) started in 0.911s. Listening on: http://0.0.0.0:8080
+2022-04-12 12:28:58,699 INFO  [io.quarkus] (main) Profile prod activated.
+2022-04-12 12:28:58,702 INFO  [io.quarkus] (main) Installed features: [cdi, resteasy, smallrye-context-propagation, vertx]
 
 
+2.Native Mode
+
+ GraalVM technology
+
+What is GrallVM?
+
+ It is compiler and platform to build native apps out of java,javascript,python....
+
+Java Apps if you want to run , we need "JVM".
+
+In modern days :
+
+We are running java apps on containerized env.
+
+Deployment on Bare Metal Machine:
+...................................
+
+    Java Apps
+       |
+     JVM
+      |
+     OS
+
+Deployment on VM: (Oracle Virtualbox...)
+...................................
+
+    Java Apps
+      |
+     JVM
+  ---OS----
+     VM
+ --------------------
+      |
+     OS
+Deployment on light weight VMs: (Container Technology) - Dockers
 
 
+   Java Apps
+      |
+     JVM
+      |
+   Container - having linux Kernal
+    Docker
+      |
+ --------------------
+      |
+     OS
+.............................................................................................
+Native Bare Metal Deployment
+
+   Java Apps
+      |
+  Native Apps (Linux Binary / Windows Binary)
+ --------------------
+      |
+     OS
+
+How to convert java apps into native?
+ GrallVM technology converts your java apps into native.
+
+Can we convert all java apps like frameworks(hibernate,spring....)?
+No!.
+Grall vm uses some compiler syntax , libs and framworks need to be rewritten to align that technology.
+
+Framework vendors has to offer new java apis for GrallVM.
+
+Quarkus and Native Apps:
+.......................
+
+Quarkus has been designed from day-1 to be native ready via the project called
+   Mandrel: A specialized distribution of GraalVM for Quarkus
+
+./mvnw package -Pnative
+
+if you run this on windows , you will get error :
+INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal io.quarkus.platform:quarkus-maven-plugin:2.7.5.Final:build (default) on project quarkus-deployment: Failed to build quarkus application: io.quarkus.builder.BuildException: Build failure: Build failed due to errors
+[ERROR]         [error]: Build step io.quarkus.deployment.pkg.steps.NativeImageBuildStep#build threw an exception: java.lang.RuntimeException: Cannot find the `native-image.cmd` in the GRAALVM_HOME, JAVA_HOME and System PATH. Install it using `gu install native-image`
+[ERROR]         at io.quarkus.deployment.pkg.steps.NativeImageBuildStep.getNativeImageBuildRunner(NativeImageBuildStep.
+
+Steps :
+
+on windows
+1.you have to install
+
+1.Visual Studio 2017 Visual C++ Build Tools
+2.https://www.graalvm.org/dev/docs/getting-started/windows/
+
+if you try on windows, no use, because production env is always linux.
+
+On Linux:
+sudo apt-get update 
+sudo apt-get install gcc zlib1g-dev build-essential
+
+wget https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-21.0.0.2/graalvm-ce-java11-linux-amd64-21.0.0.2.tar.gz
+
+tar -xvzf graalvm-ce-java11-linux-amd64-21.0.0.2.tar.gz
+ls
+
+sudo mkdir /usr/lib/jvm 
+sudo mv graalvm-ce-java11-21.0.0.2/ /usr/lib/jvm
+
+echo 'export PATH=/usr/lib/jvm/graalvm-ce-java11-21.0.0.2/bin:$PATH' >> ~/.bashrc
 
 
+echo 'export JAVA_HOME=/usr/lib/jvm/graalvm-ce-java11-21.0.0.2' >> ~/.bashrc
+
+loggout
+
+source ~/.bashrc
+
+java -version 
+gu install native-image
+gu available 
+javac HelloWorld.java
+native-image HelloWorld
+./helloworld
+
+
+Deployment on light weight VMs: (Container  Technology) - Dockers
+
+Docker :
+
+ DOCKER JVM Mode
+
+ package the apps - jar
+ mvnw package
+
+ create docker image - image
+ docker build -f src/main/docker/Dockerfile.jvm -t quarkus/quarkus-deployment-jvm .
+
+ test apps
+ docker run -i --rm -p 8080:8080 quarkus/quarkus-deployment-jvm  
+..............................................................................................
+
+ DOCKER Native Mode
+
+
+   Java Apps
+      |
+     JVM
+      |
+   Container - having linux Kernal
+    Docker
+      |
+ --------------------
+      |
+     OS
+..............................................................................................
+There are two ways:
+
+1.With GRALL VM installed.
+
+2.Without GRALL VM Installed
+
+Creating a linux executable without grallvm installed
+
+ Via Docker , Podman(for linux only)
+
+In windows:
+.............
+
+Docker file sharing settings must have been enabled.
+
+ Way 1 : using command
+
+mvnw package -Pnative  -Dquarkus.native.container-build=true  -Dquarkus.native.container-runtime=docker
+   it will lookup in local machine whether docker is installed not 
+
+ Way 2: using Docker file
+
+ Steps:
+
+  Your App -----Produce Native Image-----Executable---->Containerize it --->Container Image
+
+ Once Image ready. You can lanuch
+
+Steps:
+
+Build Image:
+docker build -f src/main/docker/Dockerfile.native -t quarkus-quickstart/getting-started .
+
+Run it:
+docker run -i --rm -p 8080:8080 quarkus-quickstart/getting-started
 
 
 
